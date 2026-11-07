@@ -1,0 +1,79 @@
+/*
+ * Vitrine. A dark stage for the exhibit and a quiet panel beside it. The one
+ * accent (--accent) matches the plinth ring, card border and controller rays.
+ */
+:root {
+  --accent: #5ce1e6;
+  --bg: #0b0d11;
+  --panel: #10141a;
+  --panel-2: #171c24;
+  --line: #242c36;
+  --ink: #e8edf2;
+  --ink-2: #a9b4bf; /* 8.6:1 on --panel */
+  --ink-3: #808c98; /* 5.2:1 on --panel */
+  --sans: "Geist", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--sans); -webkit-font-smoothing: antialiased; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+#app { display: grid; grid-template-columns: minmax(0, 1fr) 360px; height: 100dvh; }
+#stage { position: relative; overflow: hidden; min-height: 0; }
+#stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#status {
+  position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); max-width: calc(100% - 32px);
+  padding: 8px 14px; border-radius: 999px; background: rgb(16 20 26 / 0.9); border: 1px solid var(--line);
+  font: 12.5px var(--mono); text-align: center; opacity: 0; pointer-events: none; transition: opacity 150ms;
+}
+#status.on { opacity: 1; }
+
+#panel { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; padding: 18px 18px 28px; }
+#panel header h1 { margin: 0; font: 600 20px var(--sans); letter-spacing: 0.02em; }
+#panel header p { margin: 4px 0 0; color: var(--ink-2); }
+section { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+section h2 { margin: 0 0 10px; font: 500 11.5px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.note { margin: 8px 0 0; color: var(--ink-3); font-size: 12.5px; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 0 16px;
+  border-radius: 999px; border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; font-size: 14px;
+}
+.btn:hover { border-color: var(--ink-3); }
+.btn.primary { background: var(--accent); color: #061214; border-color: var(--accent); font-weight: 600; }
+.btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+.xr .btn { flex: 1; min-height: 48px; }
+
+.library { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+.item {
+  width: 100%; text-align: left; display: grid; gap: 2px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--panel-2); cursor: pointer;
+}
+.item:hover { border-color: var(--ink-3); }
+.item.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.item .t { font-weight: 500; }
+.item .m { font: 12px var(--mono); color: var(--ink-3); }
+
+.seg { display: flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); }
+.seg button { flex: 1; min-height: 36px; border: 0; border-radius: 999px; background: none; cursor: pointer; color: var(--ink-2); }
+.seg button[aria-checked="true"] { background: var(--ink); color: var(--bg); font-weight: 500; }
+.slider { display: grid; gap: 6px; margin-top: 12px; }
+.slider > span { display: flex; justify-content: space-between; color: var(--ink-2); }
+.slider output { font: 12.5px var(--mono); color: var(--ink); }
+input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 24px; }
+.is-off { opacity: 0.4; pointer-events: none; }
+#reset { margin-top: 10px; }
+
+.help { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--ink-2); font-size: 13px; }
+.help b { color: var(--ink); font-weight: 500; }
+
+@media (max-width: 800px) {
+  #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 52dvh auto; height: auto; min-height: 100dvh; }
+  #panel { border-left: 0; border-top: 1px solid var(--line); }
+}
