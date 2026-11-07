@@ -60,9 +60,10 @@ skip all of that and just open its address in the Quest browser.
 `http://localhost:5173/?emulate=1` installs Meta's WebXR emulator ([IWER](https://github.com/meta-quest/immersive-web-emulation-runtime),
 dev builds only), which pretends to be a Quest 3 with Touch controllers and hand tracking.
 Everything in the table above was tested that way in Chrome: entering passthrough,
-grabbing with a grip, two-hand scaling, the A/B/X buttons and pinch-grabbing. It hasn't
-been tried on a real headset yet, so performance on the Quest's GPU is still to be
-measured. Start with Sparse if a big scan stutters.
+grabbing with a grip, two-hand scaling, the A/B/X buttons and pinch-grabbing. On a real
+**Quest Pro** (Adreno 650) in passthrough it held a steady 72 fps for both scans in every
+look (Full, Sparse and Hologram). Sparse becomes useful for scans of a million splats or
+more. Grabbing has only been tested in the emulator so far.
 
 ## Code
 
