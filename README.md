@@ -6,8 +6,10 @@ hologram look, and play Lexindex clips beside it. Whole rooms and outdoor scenes
 open around you. It also works on a
 computer, with the mouse.
 
-It's a web app (WebXR), so there's nothing to install on the headset: you open a page
-in the Quest's browser.
+It's a web app (WebXR), so there's nothing to install on the headset: open
+**https://davisvoyles.github.io/vitrine/** in the Quest's browser and tap Enter VR or
+Enter passthrough. It's rebuilt and republished from `main` on every push
+(`.github/workflows/pages.yml`).
 
 ## What it does
 
@@ -80,8 +82,8 @@ the headset:
 4. In the Quest's browser, open **http://localhost:5173** and tap **Enter passthrough**
    or **Enter VR**.
 
-Once the site is hosted somewhere with https (GitHub Pages, Vercel, Netlify…), you can
-skip all of that and just open its address in the Quest browser.
+For trying out the published version, skip all of that and open
+https://davisvoyles.github.io/vitrine/ in the Quest browser.
 
 ## Developing without a headset
 
