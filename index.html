@@ -37,6 +37,7 @@
             Open a scan file…
             <input id="scan-file" type="file" accept=".spz,.ply,.splat,.ksplat" class="sr-only" />
           </label>
+          <p class="note">Or drop a scan or a video anywhere on the page.</p>
         </section>
 
         <section>
@@ -60,6 +61,12 @@
 
         <section>
           <h2>Size</h2>
+          <div class="chips" role="group" aria-label="Scale presets">
+            <button data-scale="0.5" aria-pressed="false">½×</button>
+            <button data-scale="1" aria-pressed="true">Real size</button>
+            <button data-scale="2" aria-pressed="false">2×</button>
+            <button data-scale="4" aria-pressed="false">4×</button>
+          </div>
           <label class="slider">
             <span><span>Scale</span><output id="scale-out">1× (real size)</output></span>
             <input id="scale" type="range" min="-200" max="300" value="0" />
@@ -84,11 +91,22 @@
         <section>
           <h2>In the headset</h2>
           <ul class="help">
-            <li><b>Grip, trigger or pinch</b> on the scan to pick it up; it moves and turns with your hand.</li>
-            <li><b>Both hands</b> holding it: pull apart or together to scale.</li>
-            <li><b>Right A</b> next scan · <b>Right B</b> colour or hologram · <b>Right stick</b> turn and scale · <b>click the right stick</b> Auto on or off</li>
-            <li><b>Left X</b> put it back in front of you · <b>Left Y</b> show or hide the video</li>
-            <li><b>Trigger or pinch</b> on the video to play or pause.</li>
+            <li><b>Turn your left palm toward you</b> for the menu: scans, look, Auto, put back, video and <b>Exit VR</b>. Poke a button with your right index finger, or point at it and pinch or pull the trigger.</li>
+            <li><b>Grip, trigger or pinch</b> on the scan to pick it up; it moves and turns with your hand. <b>Both hands</b>: pull apart or together to scale.</li>
+            <li><b>In a space</b>, pinch or grip anywhere and pull to move through it; with both hands, turn and scale it. <b>Left stick</b> walks, <b>right stick</b> snap-turns.</li>
+            <li><b>Trigger or pinch</b> on the video to play or pause; <b>grip</b> it to move it.</li>
+            <li><b>Right A</b> next scan · <b>B</b> colour or hologram · <b>stick click</b> Auto · <b>Left X</b> put it back · <b>Y</b> video</li>
+            <li>To leave without the menu: the <b>Meta button</b>, or turn your right palm toward you and pinch.</li>
+          </ul>
+        </section>
+
+        <section>
+          <h2>Keys on this computer</h2>
+          <ul class="help keys">
+            <li><kbd>←</kbd> <kbd>→</kbd> previous / next scan</li>
+            <li><kbd>H</kbd> colour or hologram · <kbd>A</kbd> Auto</li>
+            <li><kbd>R</kbd> put it back · <kbd>1</kbd> real size · <kbd>+</kbd> <kbd>−</kbd> scale</li>
+            <li><kbd>V</kbd> or <kbd>Space</kbd> play or pause the video</li>
           </ul>
         </section>
       </aside>

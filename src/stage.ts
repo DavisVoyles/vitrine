@@ -35,6 +35,12 @@ export class Stage {
   private clock = new THREE.Clock();
   private cardCanvas = document.createElement("canvas");
   private cardTexture: THREE.CanvasTexture;
+  /** A message in front of you in the headset (the page's status line can't be seen there). */
+  private toast: THREE.Mesh;
+  private toastCanvas = document.createElement("canvas");
+  private toastTexture: THREE.CanvasTexture;
+  private toastUntil = 0;
+  private toastFresh = true;
   private host: HTMLElement;
 
   constructor(host: HTMLElement) {
@@ -89,6 +95,18 @@ export class Stage {
       const aspect = this.video.videoWidth / Math.max(1, this.video.videoHeight);
       this.screen.scale.set(aspect >= 1 ? 1 : aspect, aspect >= 1 ? 1 / aspect : 1, 1);
     });
+
+    this.toastCanvas.width = 1200;
+    this.toastCanvas.height = 150;
+    this.toastTexture = new THREE.CanvasTexture(this.toastCanvas);
+    this.toastTexture.colorSpace = THREE.SRGBColorSpace;
+    this.toast = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.48, 0.06),
+      new THREE.MeshBasicMaterial({ map: this.toastTexture, transparent: true, depthTest: false, depthWrite: false }),
+    );
+    this.toast.renderOrder = 30;
+    this.toast.visible = false;
+    this.scene.add(this.toast);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
@@ -188,6 +206,46 @@ export class Stage {
     this.cardTexture.needsUpdate = true;
   }
 
+  /** Shows a message in front of you in the headset for `ms` (0 = until replaced); "" hides it. */
+  say(text: string, ms = 2500) {
+    if (!text) {
+      this.toastUntil = 0;
+      this.toast.visible = false;
+      return;
+    }
+    const ctx = this.toastCanvas.getContext("2d")!;
+    const { width: w, height: h } = this.toastCanvas;
+    ctx.clearRect(0, 0, w, h);
+    ctx.font = "44px Geist, system-ui, sans-serif";
+    const t = fit(ctx, text, w - 100);
+    const tw = ctx.measureText(t).width + 80;
+    ctx.fillStyle = "rgba(11, 13, 17, 0.88)";
+    roundRect(ctx, (w - tw) / 2, 10, tw, h - 20, (h - 20) / 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(92, 225, 230, 0.6)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    ctx.fillStyle = "#e8edf2";
+    ctx.textAlign = "center";
+    ctx.fillText(t, w / 2, h / 2 + 15);
+    this.toastTexture.needsUpdate = true;
+    this.toastUntil = ms ? performance.now() + ms : Infinity;
+  }
+
+  /** Puts the video screen beside you, ahead and to the right, turned to face you. */
+  placeScreenNearYou() {
+    const cam = this.mode ? this.renderer.xr.getCamera() : this.camera;
+    const head = cam.getWorldPosition(new THREE.Vector3());
+    const dir = cam.getWorldDirection(new THREE.Vector3());
+    dir.y = 0;
+    if (dir.lengthSq() < 1e-6) dir.set(0, 0, -1);
+    dir.normalize().applyAxisAngle(new THREE.Vector3(0, 1, 0), -0.6); // about 35° to the right
+    this.scene.attach(this.screen);
+    this.screen.position.copy(head).addScaledVector(dir, 0.85);
+    this.screen.position.y = head.y - 0.12;
+    this.screen.lookAt(head);
+  }
+
   async enterXr(mode: XrMode) {
     const session = await navigator.xr!.requestSession(mode, {
       requiredFeatures: ["local-floor"],
@@ -237,6 +295,18 @@ export class Stage {
       (this.renderer.xr.isPresenting ? this.renderer.xr.getCamera() : this.camera).getWorldPosition(eye);
       this.card.lookAt(eye.x, top.y, eye.z);
     }
+
+    // Headset messages float a little below your line of sight.
+    this.toast.visible = this.renderer.xr.isPresenting && performance.now() < this.toastUntil;
+    if (this.toast.visible) {
+      const cam = this.renderer.xr.getCamera();
+      const head = cam.getWorldPosition(new THREE.Vector3());
+      const dir = cam.getWorldDirection(new THREE.Vector3());
+      const target = head.clone().addScaledVector(dir, 0.8).add(new THREE.Vector3(0, -0.2, 0));
+      this.toast.position.lerp(target, this.toastFresh ? 1 : 0.15);
+      this.toastFresh = false;
+      this.toast.lookAt(head);
+    } else this.toastFresh = true;
     this.renderer.render(this.scene, this.camera);
   }
 }

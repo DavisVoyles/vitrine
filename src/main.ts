@@ -25,11 +25,27 @@ const auto = new AutoDetail();
 const HEADSET_MAX_SPLATS = 150_000;
 
 const input = new XrInput(stage, {
-  nextScan: () => open((state.index + 1) % library.length),
+  prevScan: () => step(-1),
+  nextScan: () => step(1),
   cycleLook: () => setLook(state.look === "colour" ? "hologram" : "colour"),
   toggleAuto: () => setAuto(!auto.enabled),
   toggleVideo: () => toggleVideo(),
-  reset: () => stage.resetPlacement(),
+  videoPanel: () => videoPanel(),
+  reset: () => resetAll(),
+  exit: () => stage.renderer.xr.getSession()?.end(),
+  menu: () => {
+    const space = stage.scan?.info.kind === "space";
+    const pos = order().indexOf(state.index) + 1;
+    return [
+      { id: "prev", label: "‹ Prev" },
+      { id: "next", label: "Next ›", sub: `${pos} of ${library.length}` },
+      { id: "look", label: state.look === "colour" ? "Colour" : "Hologram", sub: "look" },
+      { id: "auto", label: auto.enabled ? `Auto ${Math.round(state.density * 100)}%` : `${Math.round(state.density * 100)}%`, sub: auto.enabled ? "detail" : "Auto off", tone: auto.enabled ? "accent" : undefined },
+      { id: "reset", label: space ? "Recentre" : "Put back" },
+      { id: "video", label: stage.screen.visible ? "Hide video" : "Video" },
+      { id: "exit", label: "Exit VR", wide: true, tone: "exit" },
+    ];
+  },
 });
 let lastCard = 0;
 stage.onFrame = (frame, dt) => {
@@ -73,20 +89,45 @@ async function open(index: number) {
     renderLibrary();
     updateCounts();
     status("");
+    remember();
   } catch (e) {
     status(e instanceof Error && e.message ? e.message : `${info.title} couldn't be opened as a splat file.`);
   }
 }
 
+/** Library indices in the order they're listed: objects, then spaces. */
+function order() {
+  const idx = library.map((_, i) => i);
+  return [...idx.filter((i) => library[i].kind !== "space"), ...idx.filter((i) => library[i].kind === "space")];
+}
+
+/** The previous (−1) or next (+1) scan in the list. */
+function step(dir: number) {
+  const o = order();
+  const at = Math.max(0, o.indexOf(state.index));
+  open(o[(at + dir + o.length) % o.length]);
+}
+
 function renderLibrary() {
   const ul = $("#library");
   ul.innerHTML = "";
-  library.forEach((s, i) => {
+  const hasSpaces = library.some((s) => s.kind === "space");
+  let group = "";
+  order().forEach((i) => {
+    const s = library[i];
+    const g = s.kind === "space" ? "Spaces" : "Objects";
+    if (hasSpaces && g !== group) {
+      group = g;
+      const h = document.createElement("li");
+      h.className = "group";
+      h.textContent = g;
+      ul.append(h);
+    }
     const b = document.createElement("button");
     b.className = "item" + (i === state.index && stage.scan?.info === s ? " on" : "");
     b.innerHTML = `<span class="t"></span><span class="m"></span>`;
     b.querySelector(".t")!.textContent = s.title;
-    b.querySelector(".m")!.textContent = `${s.kind === "space" ? "Space · " : ""}${s.id} · ${s.licence}`;
+    b.querySelector(".m")!.textContent = `${s.id} · ${s.licence}`;
     b.addEventListener("click", () => open(i));
     const li = document.createElement("li");
     li.append(b);
@@ -97,9 +138,15 @@ function renderLibrary() {
 $<HTMLInputElement>("#scan-file").addEventListener("change", async (e) => {
   const inputEl = e.target as HTMLInputElement;
   const f = inputEl.files?.[0];
-  if (!f) return;
-  const bytes = new Uint8Array(await f.arrayBuffer());
   inputEl.value = "";
+  if (f) openFile(f);
+});
+
+const SCAN_FILE = /\.(spz|ply|splat|ksplat)$/i;
+async function openFile(f: File) {
+  if (f.type.startsWith("video/")) return playVideo(URL.createObjectURL(f), f.name);
+  if (!SCAN_FILE.test(f.name)) return status(`${f.name} isn't a scan (.spz, .ply, .splat, .ksplat) or a video.`);
+  const bytes = new Uint8Array(await f.arrayBuffer());
   library.push({
     id: "File",
     title: f.name.replace(/\.(spz|ply|splat|ksplat)$/i, ""),
@@ -110,6 +157,23 @@ $<HTMLInputElement>("#scan-file").addEventListener("change", async (e) => {
     fileName: f.name,
   });
   open(library.length - 1);
+}
+
+// Drop a scan or a video anywhere on the page.
+const app = $("#app");
+app.addEventListener("dragover", (e) => {
+  if (!e.dataTransfer?.types.includes("Files")) return;
+  e.preventDefault();
+  app.classList.add("dropping");
+});
+app.addEventListener("dragleave", (e) => {
+  if (e.target === app || !app.contains(e.relatedTarget as Node)) app.classList.remove("dropping");
+});
+app.addEventListener("drop", (e) => {
+  e.preventDefault();
+  app.classList.remove("dropping");
+  const f = e.dataTransfer?.files[0];
+  if (f) openFile(f);
 });
 
 /* ── Look ────────────────────────────────────────────────────────── */
@@ -123,7 +187,9 @@ function setLook(look: LookName) {
   state.look = look;
   document.querySelectorAll<HTMLElement>("[data-look]").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.look === look)));
   stage.look.holo.value = look === "hologram" ? 1 : 0;
+  stage.scan?.mesh.updateVersion(); // redraw the splats in the new look
   updateCounts();
+  remember();
 }
 
 /** Auto picks the detail to hold the frame rate; off, the slider sets it. */
@@ -132,6 +198,7 @@ function setAuto(on: boolean) {
   $<HTMLInputElement>("#auto").checked = on;
   if (on) setDensity(autoStart(), true);
   updateCounts();
+  remember();
 }
 
 /** Where Auto starts: the remembered budget in a headset, everything on a computer. */
@@ -175,14 +242,21 @@ function updateCounts() {
 const scaleInput = $<HTMLInputElement>("#scale");
 scaleInput.addEventListener("input", () => setScale(Math.pow(2, Number(scaleInput.value) / 100)));
 function setScale(s: number) {
+  s = THREE.MathUtils.clamp(s, 0.25, 8);
   stage.exhibit.scale.setScalar(s);
+  document.querySelectorAll<HTMLElement>("[data-scale]").forEach((b) => b.setAttribute("aria-pressed", String(Math.abs(Number(b.dataset.scale) - s) < 0.01)));
   scaleInput.value = String(Math.round(Math.log2(s) * 100));
   $("#scale-out").textContent = Math.abs(s - 1) < 0.01 ? "1× (real size)" : `${s < 1 ? s.toFixed(2) : s.toFixed(1)}×`;
 }
-$("#reset").addEventListener("click", () => {
+document.querySelectorAll<HTMLElement>("[data-scale]").forEach((b) => b.addEventListener("click", () => setScale(Number(b.dataset.scale))));
+
+/** Back in front of you at real size (a space: back around you). */
+function resetAll() {
+  input.releaseAll();
   stage.resetPlacement();
   setScale(1);
-});
+}
+$("#reset").addEventListener("click", resetAll);
 
 /* ── Video ───────────────────────────────────────────────────────── */
 
@@ -196,6 +270,7 @@ function playVideo(src: string, title: string) {
   status(`Playing ${title}`);
   setTimeout(() => status(""), 1500);
   renderVideos(src);
+  syncVideoButtons();
 }
 
 function toggleVideo() {
@@ -204,6 +279,24 @@ function toggleVideo() {
   stage.screen.visible = true;
   if (v.paused) v.play().catch(() => {});
   else v.pause();
+}
+
+/** Shows the screen beside you (starting the first clip if nothing is loaded), or hides it. */
+function videoPanel() {
+  if (stage.screen.visible) {
+    stage.screen.visible = false;
+    stage.video.pause();
+  } else {
+    if (!stage.video.src) playVideo(VIDEOS[0].url, VIDEOS[0].title);
+    else stage.video.play().catch(() => {});
+    if (stage.mode) stage.placeScreenNearYou();
+    stage.screen.visible = true;
+  }
+  syncVideoButtons();
+}
+
+function syncVideoButtons() {
+  $("#hide-video").textContent = stage.screen.visible ? "Hide" : "Show";
 }
 
 function renderVideos(current = "") {
@@ -225,7 +318,7 @@ stage.video.addEventListener("pause", () => ($("#play").textContent = "Play"));
 $("#play").addEventListener("click", toggleVideo);
 $("#hide-video").addEventListener("click", () => {
   stage.screen.visible = !stage.screen.visible;
-  $("#hide-video").textContent = stage.screen.visible ? "Hide" : "Show";
+  syncVideoButtons();
 });
 $<HTMLInputElement>("#video-file").addEventListener("change", (e) => {
   const f = (e.target as HTMLInputElement).files?.[0];
@@ -265,7 +358,10 @@ async function enter(mode: XrMode) {
     // A big scan gets swapped for a thinned copy in the headset, and back afterwards.
     if (auto.enabled && stage.scan && stage.scan.splats > HEADSET_MAX_SPLATS) await open(state.index);
     else setDensity(autoStart(), true);
+    stage.say("Turn your left palm toward you for the menu", 6000);
     stage.renderer.xr.getSession()?.addEventListener("end", () => {
+      input.releaseAll();
+      input.menu.place(null, new THREE.Vector3(), true); // hide the menu
       if (stage.scan?.thinnedFrom) open(state.index);
       else setDensity(autoStart(), true);
     });
@@ -282,17 +378,73 @@ function status(msg: string) {
   const s = $("#status");
   s.textContent = msg;
   s.classList.toggle("on", !!msg);
+  // In the headset the page can't be seen: show it there too (errors stay longer).
+  if (stage.mode) stage.say(msg, msg.endsWith("…") ? 0 : 4000);
 }
 
-if (import.meta.env.DEV) Object.assign(window, { __vitrine: { stage, input, state, auto, open, setLook, setAuto, setDensity, setScale, playVideo, library } });
+/* ── Keys (on a computer) ────────────────────────────────────────── */
 
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const t = e.target as HTMLElement;
+  if (t.closest("input, textarea, select, [contenteditable]")) return;
+  const keys: Record<string, () => void> = {
+    ArrowLeft: () => step(-1),
+    ArrowRight: () => step(1),
+    h: () => setLook(state.look === "colour" ? "hologram" : "colour"),
+    a: () => setAuto(!auto.enabled),
+    r: resetAll,
+    v: () => (stage.video.src ? toggleVideo() : videoPanel()),
+    " ": () => (stage.video.src ? toggleVideo() : videoPanel()),
+    "0": () => setScale(1),
+    "1": () => setScale(1),
+    "=": () => setScale(stage.exhibit.scale.x * 1.25),
+    "+": () => setScale(stage.exhibit.scale.x * 1.25),
+    "-": () => setScale(stage.exhibit.scale.x / 1.25),
+  };
+  const fn = keys[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+  if (!fn) return;
+  // Space and the arrows would otherwise press a focused button or scroll the panel.
+  e.preventDefault();
+  fn();
+});
+
+/* ── Remembered between visits ───────────────────────────────────── */
+
+const SAVED = "vitrine:v1";
+const scanKey = (s: ScanInfo) => s.url ?? s.id;
+
+function remember() {
+  const s = stage.scan?.info;
+  try {
+    const prev = JSON.parse(localStorage.getItem(SAVED) ?? "{}");
+    // Files opened from the device can't be reopened next time; keep the last library scan.
+    const scan = s && !s.bytes ? scanKey(s) : prev.scan;
+    localStorage.setItem(SAVED, JSON.stringify({ scan, look: state.look, auto: auto.enabled }));
+  } catch {
+    // Private browsing or storage off: nothing to remember.
+  }
+}
+
+function recall(): { scan?: string; look?: LookName; auto?: boolean } {
+  try {
+    return JSON.parse(localStorage.getItem(SAVED) ?? "{}");
+  } catch {
+    return {};
+  }
+}
+
+if (import.meta.env.DEV) Object.assign(window, { __vitrine: { stage, input, state, auto, open, step, setLook, setAuto, setDensity, setScale, playVideo, videoPanel, resetAll, library } });
+
+const saved = recall();
 renderLibrary();
 renderVideos();
-setLook("colour");
-setAuto(true);
+setLook(saved.look === "hologram" ? "hologram" : "colour");
+setAuto(saved.auto ?? true);
 checkXr();
-open(0);
+// Your own scans (public/local) join the library first, so the last one you looked at can reopen.
 loadLocalLibrary().then((extra) => {
   library.splice(LIBRARY.length, 0, ...extra);
-  renderLibrary();
+  const i = library.findIndex((s) => scanKey(s) === saved.scan);
+  open(i >= 0 ? i : 0);
 });

@@ -30,15 +30,36 @@ in the Quest's browser.
 
 ### In the headset
 
+Turn your **left palm toward you** (an open hand, or holding the left controller) and a
+menu appears over it: previous and next scan, colour or hologram, Auto detail, put it
+back, video, and **Exit VR**. Poke a button with your right index finger, or point at it
+and pinch or pull the trigger. Everything works with hands alone; the controller buttons
+are shortcuts.
+
 | Input | Does |
 | --- | --- |
+| Left palm toward you | The wrist menu |
 | Grip, trigger or pinch on the scan (near it, or pointing at it) | Pick it up; it moves and turns with your hand |
 | Both hands holding it | Pull apart or together to scale |
+| In a space: grip or pinch anywhere and pull | Move through it |
+| In a space: both hands | Turn it and scale it |
+| In a space: left stick / right stick | Walk / snap-turn 30° |
 | Trigger or pinch on the video | Play or pause |
+| Grip on the video | Carry the screen somewhere else |
 | Right **A** / **B** | Next scan / colour or hologram |
-| Right thumbstick | Turn it (left/right) and scale it (up/down) |
+| Right thumbstick (objects) | Turn it (left/right) and scale it (up/down) |
 | Click the right thumbstick | Auto detail on or off |
-| Left **X** / **Y** | Put it back in front of you / show or hide the video |
+| Left **X** / **Y** | Put it back in front of you / video beside you, or hide it |
+
+Messages (loading, thinning, errors) show in front of you in the headset. To leave
+without the menu, press the **Meta button**, or turn your right palm toward you and pinch.
+
+### On a computer
+
+Drag to orbit, scroll to zoom. Drop a scan or a video anywhere on the page to open it.
+Keys: **← →** previous / next scan, **H** colour or hologram, **A** Auto, **R** put it
+back, **1** real size, **+ −** scale, **V** or **Space** play or pause the video. The last
+scan, look and Auto setting are remembered for next time.
 
 ## Try it on your Quest
 
@@ -104,7 +125,8 @@ around you (`scale` sets metres per file unit for a space). They appear in the l
 | File | Does |
 | --- | --- |
 | `src/stage.ts` | three.js + [Spark](https://sparkjs.dev) scene, the exhibit, card, video screen, entering VR or passthrough |
-| `src/input.ts` | Grabbing, two-hand scaling, controller buttons, rays |
+| `src/input.ts` | Grabbing, two-hand scaling, moving through spaces, controller buttons, rays |
+| `src/wristMenu.ts` | The menu over your left palm: placement, poking and pointing |
 | `src/look.ts` | Detail and hologram, as a per-splat GPU modifier |
 | `src/autoDetail.ts` | Auto detail: holds the headset's frame rate by changing the share of splats drawn |
 | `src/scans.ts` | The scan library, local scans, loading, real-size framing and thinning |
