@@ -68,6 +68,8 @@ section h2 { margin: 0 0 10px; font: 500 11.5px var(--mono); letter-spacing: 0.1
 .slider output { font: 12.5px var(--mono); color: var(--ink); }
 input[type="range"] { width: 100%; accent-color: var(--accent); min-height: 24px; }
 .is-off { opacity: 0.4; pointer-events: none; }
+.check { display: flex; align-items: center; gap: 8px; min-height: 40px; cursor: pointer; color: var(--ink-2); }
+.check input { width: 18px; height: 18px; accent-color: var(--accent); }
 #reset { margin-top: 10px; }
 
 .help { margin: 0; padding-left: 18px; display: grid; gap: 6px; color: var(--ink-2); font-size: 13px; }

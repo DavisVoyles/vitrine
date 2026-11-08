@@ -2,3 +2,6 @@ node_modules
 dist
 .DS_Store
 *.log
+
+# Local-only scans for testing (not ours to commit, or too big)
+public/local/

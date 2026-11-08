@@ -113,6 +113,11 @@ export class Stage {
     this.look.hMax.value = scan.hMax;
     this.holder.add(scan.mesh);
     this.scan = scan;
+    // A space surrounds you: no plinth, card or floor grid.
+    const space = scan.info.kind === "space";
+    this.exhibit.getObjectByName("plinth")!.visible = !space;
+    this.card.visible = !space;
+    this.floor.visible = !space && this.mode !== "immersive-ar";
     if (old && old !== scan) {
       this.holder.remove(old.mesh);
       old.mesh.dispose();
@@ -120,9 +125,28 @@ export class Stage {
     this.drawCard();
   }
 
-  /** Puts the exhibit back in front of you at real size. */
+  /** Puts the exhibit back in front of you at real size (or a space around you). */
   resetPlacement() {
     this.scene.attach(this.exhibit);
+    this.exhibit.quaternion.identity();
+    this.exhibit.scale.setScalar(1);
+    if (this.scan?.info.kind === "space") {
+      // The world's origin goes at your eyes; on a computer, the camera starts there.
+      const eye = new THREE.Vector3(0, 1.6, 0);
+      if (this.mode) this.renderer.xr.getCamera().getWorldPosition(eye);
+      this.exhibit.position.copy(eye);
+      if (!this.mode) {
+        this.camera.position.set(0, 1.6, 0.8);
+        this.controls.target.set(0, 1.5, -1);
+        this.controls.update();
+      }
+      return;
+    }
+    if (!this.mode) {
+      this.camera.position.set(0.22, 1.32, 0.42);
+      this.controls.target.set(0.2, 1.08, -0.62);
+      this.controls.update();
+    }
     this.exhibit.position.copy(HOME);
     if (this.mode) {
       // In a headset, in front of wherever you're facing.
@@ -137,8 +161,6 @@ export class Stage {
         this.exhibit.position.set(head.x + dir.x * 0.6, Math.max(0.6, head.y - 0.55), head.z + dir.z * 0.6);
       }
     }
-    this.exhibit.quaternion.identity();
-    this.exhibit.scale.setScalar(1);
   }
 
   /** Repaints the info card (title, credit, look, splats). */
@@ -173,7 +195,7 @@ export class Stage {
     });
     const ar = mode === "immersive-ar";
     this.scene.background = ar ? null : new THREE.Color(0x0b0d11);
-    this.floor.visible = !ar;
+    this.floor.visible = !ar && this.scan?.info.kind !== "space";
     this.renderer.setClearColor(0x000000, ar ? 0 : 1);
     // Lower detail at the edges of each eye's view: cheaper, hard to notice.
     this.renderer.xr.setFoveation(1);
@@ -185,7 +207,7 @@ export class Stage {
     session.addEventListener("end", () => {
       this.mode = null;
       this.scene.background = new THREE.Color(0x0b0d11);
-      this.floor.visible = true;
+      this.floor.visible = this.scan?.info.kind !== "space";
       this.renderer.setClearColor(0x000000, 1);
     });
   }

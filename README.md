@@ -2,7 +2,8 @@
 
 Pharoscope scans at real size in a Meta Quest: in passthrough, on your own desk, or
 in VR. Pick one up, turn it in your hand, scale it with both hands, switch it to a
-sparse or hologram look, and play Lexindex clips beside it. It also works on a
+hologram look, and play Lexindex clips beside it. Whole rooms and outdoor scenes
+open around you. It also works on a
 computer, with the mouse.
 
 It's a web app (WebXR), so there's nothing to install on the headset: you open a page
@@ -16,8 +17,13 @@ in the Quest's browser.
   floor grid.
 - **Hands or controllers.** A grip, trigger or pinch picks it up. Holding it with both
   hands and pulling apart or together scales it.
-- **Looks.** Full; Sparse (fewer splats, which is how big scans fit the Quest's GPU); or
-  Hologram (one colour, see-through points, a scan line).
+- **Spaces.** A scan marked as a space (a room, a street) opens around you at eye level
+  instead of on the ring.
+- **Looks.** Colour, or Hologram (one colour, see-through points, a scan line).
+- **Auto detail.** In the headset, Vitrine draws as many splats as keep it at the
+  headset's full frame rate (72 fps on a Quest Pro) and adjusts as you move. Scans over
+  150,000 splats are first thinned to 150,000, keeping the big, solid splats that carry
+  the picture. Turn Auto off to set the share of splats by hand.
 - **Info card** above the scan: title, who captured it, when, licence, look and splat count.
 - **Video screen** beside it for Lexindex "Text it" clips. Two are bundled; open any
   other from the device (in the Quest browser, saved clips are in Downloads).
@@ -29,8 +35,9 @@ in the Quest's browser.
 | Grip, trigger or pinch on the scan (near it, or pointing at it) | Pick it up; it moves and turns with your hand |
 | Both hands holding it | Pull apart or together to scale |
 | Trigger or pinch on the video | Play or pause |
-| Right **A** / **B** | Next scan / next look |
+| Right **A** / **B** | Next scan / colour or hologram |
 | Right thumbstick | Turn it (left/right) and scale it (up/down) |
+| Click the right thumbstick | Auto detail on or off |
 | Left **X** / **Y** | Put it back in front of you / show or hide the video |
 
 ## Try it on your Quest
@@ -62,8 +69,35 @@ dev builds only), which pretends to be a Quest 3 with Touch controllers and hand
 Everything in the table above was tested that way in Chrome: entering passthrough,
 grabbing with a grip, two-hand scaling, the A/B/X buttons and pinch-grabbing. On a real
 **Quest Pro** (Adreno 650) in passthrough it held a steady 72 fps for both scans in every
-look (Full, Sparse and Hologram). Sparse becomes useful for scans of a million splats or
-more. Grabbing has only been tested in the emulator so far.
+look. Grabbing has only been tested in the emulator so far.
+
+### How many splats the Quest Pro can draw
+
+Measured in VR at 72 fps target:
+
+| Scan | Splats | Without Auto | With Auto |
+| --- | --- | --- | --- |
+| Wolf (AWS sample) | 84k | 71 fps | 71.8 fps, all 84k drawn |
+| Woobles | 578k | 7.7 fps | 71.6 fps, 80k drawn (thinned to 150k) |
+| Snow street | 982k | 6.5 fps | 71.8 fps, 18k drawn (thinned to 150k) |
+| Grey room | 2M | 4.3 fps | 71.8 fps, 50k drawn (thinned to 150k) |
+
+Roughly 85–90k splats of an object hold 72 fps. Big outdoor scenes cost more per splat
+because their splats cover more of the screen.
+
+## Your own scans
+
+Put scan files (`.spz`, `.ply`, `.splat`, `.ksplat`) in `public/local/` (git-ignored) with
+a `scans.json` listing them:
+
+```json
+[{ "file": "jar.spz", "id": "jar", "title": "Jar on the desk", "byline": "Pharoscope, 7 Nov 2026",
+   "licence": "CC BY 4.0", "yDown": true, "yaw": 180, "height": 0.4 }]
+```
+
+`yDown` is for captures stored upside down (most COLMAP and Brush output), `yaw` turns it
+in degrees, `height` sets an object's real height in metres, and `"kind": "space"` opens it
+around you (`scale` sets metres per file unit for a space). They appear in the library after the bundled scans.
 
 ## Code
 
@@ -71,8 +105,9 @@ more. Grabbing has only been tested in the emulator so far.
 | --- | --- |
 | `src/stage.ts` | three.js + [Spark](https://sparkjs.dev) scene, the exhibit, card, video screen, entering VR or passthrough |
 | `src/input.ts` | Grabbing, two-hand scaling, controller buttons, rays |
-| `src/look.ts` | Sparse and hologram, as a per-splat GPU modifier |
-| `src/scans.ts` | The scan library, loading and real-size framing |
+| `src/look.ts` | Detail and hologram, as a per-splat GPU modifier |
+| `src/autoDetail.ts` | Auto detail: holds the headset's frame rate by changing the share of splats drawn |
+| `src/scans.ts` | The scan library, local scans, loading, real-size framing and thinning |
 | `src/main.ts` | The page |
 
 Built with Spark 2.4 and three.js 0.180. Scans and clips: D. Voyles, CC BY 4.0.

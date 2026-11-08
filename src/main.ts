@@ -1,10 +1,11 @@
 import "./style.css";
 import * as THREE from "three";
-import { LIBRARY, VIDEOS, loadScan, type ScanInfo } from "./scans";
+import { LIBRARY, VIDEOS, loadLocalLibrary, loadScan, thinScan, type ScanInfo } from "./scans";
 import { Stage, type XrMode } from "./stage";
 import { XrInput } from "./input";
+import { AutoDetail } from "./autoDetail";
 
-type LookName = "full" | "sparse" | "hologram";
+type LookName = "colour" | "hologram";
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
 
 // Dev only: ?emulate=1 installs Meta's WebXR emulator (a virtual Quest 3), so
@@ -18,16 +19,30 @@ if (import.meta.env.DEV && new URLSearchParams(location.search).has("emulate")) 
 
 const stage = new Stage($("#stage"));
 const library: ScanInfo[] = [...LIBRARY];
-const state = { index: 0, look: "full" as LookName, density: 1, loadToken: 0 };
+const state = { index: 0, look: "colour" as LookName, density: 1, loadToken: 0 };
+const auto = new AutoDetail();
+/** In a headset, scans bigger than this are replaced by a thinned copy when they load. */
+const HEADSET_MAX_SPLATS = 150_000;
 
 const input = new XrInput(stage, {
   nextScan: () => open((state.index + 1) % library.length),
-  cycleLook: () => setLook(state.look === "full" ? "sparse" : state.look === "sparse" ? "hologram" : "full"),
+  cycleLook: () => setLook(state.look === "colour" ? "hologram" : "colour"),
+  toggleAuto: () => setAuto(!auto.enabled),
   toggleVideo: () => toggleVideo(),
   reset: () => stage.resetPlacement(),
 });
+let lastCard = 0;
 stage.onFrame = (frame, dt) => {
   if (stage.mode) input.update(frame, dt);
+  const s = stage.scan;
+  // Auto only adjusts in a headset: on a computer, frame rate is often limited by
+  // other things (a background tab, a 30 Hz headless browser), not by splats.
+  if (!s || !stage.mode) return;
+  const now = performance.now();
+  const target = stage.renderer.xr.getSession()?.frameRate ?? 72;
+  const next = auto.frame(now, dt * 1000, target, state.density, s.splats);
+  if (next !== null) setDensity(next, true);
+  else if (auto.enabled && now - lastCard > 1000) updateCounts(); // keep the fps readout fresh
 };
 
 /* ── Scans ───────────────────────────────────────────────────────── */
@@ -37,7 +52,13 @@ async function open(index: number) {
   const info = library[index];
   status(`Loading ${info.title}…`);
   try {
-    const scan = await loadScan(info);
+    let scan = await loadScan(info);
+    if (stage.mode && auto.enabled && scan.splats > HEADSET_MAX_SPLATS) {
+      status(`Thinning ${info.title} for the headset…`);
+      const full = scan;
+      scan = await thinScan(full, HEADSET_MAX_SPLATS);
+      full.mesh.dispose();
+    }
     if (token !== state.loadToken) {
       scan.mesh.dispose(); // a newer choice won
       return;
@@ -45,6 +66,8 @@ async function open(index: number) {
     state.index = index;
     input.releaseAll();
     stage.show(scan);
+    // In a headset, start near the level it handled last time and let Auto settle.
+    setDensity(autoStart(), true);
     stage.resetPlacement();
     setScale(1);
     renderLibrary();
@@ -63,7 +86,7 @@ function renderLibrary() {
     b.className = "item" + (i === state.index && stage.scan?.info === s ? " on" : "");
     b.innerHTML = `<span class="t"></span><span class="m"></span>`;
     b.querySelector(".t")!.textContent = s.title;
-    b.querySelector(".m")!.textContent = `${s.id} · ${s.licence}`;
+    b.querySelector(".m")!.textContent = `${s.kind === "space" ? "Space · " : ""}${s.id} · ${s.licence}`;
     b.addEventListener("click", () => open(i));
     const li = document.createElement("li");
     li.append(b);
@@ -97,24 +120,39 @@ const toLog = (d: number) => Math.round(((Math.log10(d) + 2) / 2) * 1000);
 document.querySelectorAll<HTMLElement>("[data-look]").forEach((b) => b.addEventListener("click", () => setLook(b.dataset.look as LookName)));
 
 function setLook(look: LookName) {
-  const first = look !== "full" && state.look === "full";
   state.look = look;
   document.querySelectorAll<HTMLElement>("[data-look]").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.look === look)));
   stage.look.holo.value = look === "hologram" ? 1 : 0;
-  // Sparse and hologram start at a level that suits a Quest; full is everything.
-  if (look === "full") setDensity(1);
-  else if (first) setDensity(look === "hologram" ? 0.15 : 0.25);
-  $("#density-row").classList.toggle("is-off", look === "full");
   updateCounts();
 }
 
+/** Auto picks the detail to hold the frame rate; off, the slider sets it. */
+function setAuto(on: boolean) {
+  auto.enabled = on;
+  $<HTMLInputElement>("#auto").checked = on;
+  if (on) setDensity(autoStart(), true);
+  updateCounts();
+}
+
+/** Where Auto starts: the remembered budget in a headset, everything on a computer. */
+function autoStart() {
+  if (!auto.enabled) return state.density;
+  return stage.mode && stage.scan ? auto.start(stage.scan.splats, performance.now()) : 1;
+}
+$<HTMLInputElement>("#auto").addEventListener("change", (e) => setAuto((e.target as HTMLInputElement).checked));
+
 const densityInput = $<HTMLInputElement>("#density");
-densityInput.addEventListener("input", () => setDensity(fromLog(Number(densityInput.value))));
-function setDensity(d: number) {
+densityInput.addEventListener("input", () => {
+  // Choosing a level by hand turns Auto off.
+  if (auto.enabled) setAuto(false);
+  setDensity(fromLog(Number(densityInput.value)));
+});
+function setDensity(d: number, fromAuto = false) {
   state.density = d;
   stage.look.density.value = d;
   densityInput.value = String(toLog(d));
-  $("#density-out").textContent = d >= 0.999 ? "100%" : `${(d * 100).toFixed(d < 0.1 ? 1 : 0)}%`;
+  const pctText = d >= 0.999 ? "100%" : `${(d * 100).toFixed(d < 0.1 ? 1 : 0)}%`;
+  $("#density-out").textContent = fromAuto && auto.enabled ? (stage.mode ? `Auto · ${pctText}` : `Auto · ${pctText} (adjusts in a headset)`) : pctText;
   stage.scan?.mesh.updateVersion();
   updateCounts();
 }
@@ -122,11 +160,13 @@ function setDensity(d: number) {
 function updateCounts() {
   const s = stage.scan;
   if (!s) return;
+  lastCard = performance.now();
   const drawn = Math.round(s.splats * state.density);
-  const text = `${drawn.toLocaleString("en-US")} of ${s.splats.toLocaleString("en-US")} splats`;
-  $("#splat-count").textContent = text;
-  const lookName = state.look === "full" ? "Full" : state.look === "sparse" ? "Sparse" : "Hologram";
-  stage.drawCard(`${lookName} · ${text}`);
+  const text = `${drawn.toLocaleString("en-US")} of ${s.splats.toLocaleString("en-US")} splats${s.thinnedFrom ? ` (thinned from ${s.thinnedFrom.toLocaleString("en-US")})` : ""}`;
+  const fps = auto.enabled && stage.mode && auto.fps ? ` · ${Math.round(auto.fps)} fps` : "";
+  $("#splat-count").textContent = text + fps;
+  const detail = auto.enabled ? `Auto ${Math.round(state.density * 100)}%` : `${Math.round(state.density * 100)}%`;
+  stage.drawCard(`${state.look === "colour" ? "Colour" : "Hologram"} · ${detail} · ${text}${fps}`);
 }
 
 /* ── Size ────────────────────────────────────────────────────────── */
@@ -222,6 +262,13 @@ async function enter(mode: XrMode) {
   try {
     await stage.enterXr(mode);
     stage.resetPlacement();
+    // A big scan gets swapped for a thinned copy in the headset, and back afterwards.
+    if (auto.enabled && stage.scan && stage.scan.splats > HEADSET_MAX_SPLATS) await open(state.index);
+    else setDensity(autoStart(), true);
+    stage.renderer.xr.getSession()?.addEventListener("end", () => {
+      if (stage.scan?.thinnedFrom) open(state.index);
+      else setDensity(autoStart(), true);
+    });
   } catch (e) {
     status(`Couldn't start ${mode === "immersive-ar" ? "passthrough" : "VR"}: ${(e as Error).message}`);
   }
@@ -237,10 +284,15 @@ function status(msg: string) {
   s.classList.toggle("on", !!msg);
 }
 
-if (import.meta.env.DEV) Object.assign(window, { __vitrine: { stage, input, state, open, setLook, setDensity, setScale, playVideo, library } });
+if (import.meta.env.DEV) Object.assign(window, { __vitrine: { stage, input, state, auto, open, setLook, setAuto, setDensity, setScale, playVideo, library } });
 
 renderLibrary();
 renderVideos();
-setLook("full");
+setLook("colour");
+setAuto(true);
 checkXr();
 open(0);
+loadLocalLibrary().then((extra) => {
+  library.splice(LIBRARY.length, 0, ...extra);
+  renderLibrary();
+});

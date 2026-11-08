@@ -4,6 +4,7 @@ import type { Stage } from "./stage";
 export interface InputActions {
   nextScan(): void;
   cycleLook(): void;
+  toggleAuto(): void;
   toggleVideo(): void;
   reset(): void;
 }
@@ -19,9 +20,9 @@ const FAR = 6;
  *   It follows your hand, keeping its offset, so you can turn it in your hand.
  * - Grab with both hands and pull apart or together: scale it.
  * - Trigger or pinch on the video screen: play or pause.
- * - Right A: next scan. Right B: next look. Left X: put it back in front of you.
- *   Left Y: show or hide the video. Right thumbstick: turn (left/right) and
- *   scale (up/down) without grabbing.
+ * - Right A: next scan. Right B: colour or hologram. Right thumbstick click: Auto
+ *   detail on or off. Left X: put it back in front of you. Left Y: show or hide
+ *   the video. Right thumbstick: turn (left/right) and scale (up/down) without grabbing.
  */
 export class XrInput {
   private controllers: THREE.Group[] = [];
@@ -76,6 +77,8 @@ export class XrInput {
   /** Distance along the controller's ray to the exhibit, or to it if in reach; null if neither. */
   private reach(c: THREE.Group): number | null {
     const origin = this.aim(c);
+    // You stand inside a space; it can be turned with the stick, not grabbed.
+    if (this.stage.scan?.info.kind === "space") return null;
     const sphere = this.exhibitSphere();
     const d = origin.distanceTo(sphere.center);
     if (d <= sphere.radius + NEAR) return 0;
@@ -153,6 +156,7 @@ export class XrInput {
       if (side === "right") {
         edge(4, this.actions.nextScan);
         edge(5, this.actions.cycleLook);
+        edge(3, this.actions.toggleAuto);
         const x = gp.axes[2] ?? 0;
         const y = gp.axes[3] ?? 0;
         if (this.grabbing.length === 0) {
