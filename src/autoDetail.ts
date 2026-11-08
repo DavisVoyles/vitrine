@@ -30,8 +30,9 @@ export class AutoDetail {
   /** Lowest share that ran too slow for this scan (1 = none found yet). */
   private ceiling = 1;
   private ceilingSince = 0;
-  /** The last cut, to check whether it helped. */
+  /** The last cut (or chain of unimproved cuts), to check whether cutting helped. */
   private lastCut: { from: number; p75: number } | null = null;
+  private cutsWithoutImprovement = 0;
   /** Cutting stopped helping at this share; don't go below it for this scan. */
   private floor = 0;
 
@@ -42,6 +43,7 @@ export class AutoDetail {
     this.ceiling = 1;
     this.ceilingSince = now;
     this.lastCut = null;
+    this.cutsWithoutImprovement = 0;
     this.floor = 0;
     this.windowStart = now;
     this.ignoreUntil = now + 600; // loading and the first sort are slow
@@ -77,18 +79,29 @@ export class AutoDetail {
     this.lastCut = null;
     if (p75 > budgetMs * 1.2) {
       this.goodSince = 0;
-      if (cut && p75 > cut.p75 * 0.9) {
-        // The last cut didn't help: splats aren't what's slow. Undo it and stop here.
-        this.floor = cut.from;
-        return this.finish(now, cut.from);
+      let rollbackFrom = density;
+      if (cut) {
+        if (p75 > cut.p75 * 0.9) {
+          this.cutsWithoutImprovement++;
+          if (this.cutsWithoutImprovement >= 2) {
+            // Consecutive cuts didn't help: splats aren't what's slow. Undo them and stop here.
+            this.cutsWithoutImprovement = 0;
+            this.floor = cut.from;
+            return this.finish(now, cut.from);
+          }
+          rollbackFrom = cut.from;
+        } else {
+          this.cutsWithoutImprovement = 0;
+        }
       }
       if (density <= this.floor + 1e-6) return null;
       // Too slow: remember this level, and drop in proportion to how slow it was.
       this.ceiling = Math.min(this.ceiling, density);
       this.ceilingSince = now;
       next = Math.max(this.floor, Math.min(density * clamp(budgetMs / p75, 0.35, 0.85), this.ceiling * 0.85));
-      this.lastCut = { from: density, p75 };
+      this.lastCut = { from: rollbackFrom, p75 };
     } else if (p50 <= budgetMs * 1.1) {
+      this.cutsWithoutImprovement = 0;
       // Learn from smooth running, but don't let a starved scan drag the budget down.
       if (!this.floor) this.budget = Math.max(this.budget * 0.97, density * splats);
       if (!this.goodSince) this.goodSince = now;
@@ -101,6 +114,7 @@ export class AutoDetail {
         }
       }
     } else {
+      this.cutsWithoutImprovement = 0;
       this.goodSince = 0;
     }
     return next === null ? null : this.finish(now, next);

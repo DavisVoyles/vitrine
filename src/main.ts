@@ -32,6 +32,7 @@ const input = new XrInput(stage, {
   videoPanel: () => videoPanel(),
   reset: () => resetAll(),
   exit: () => stage.renderer.xr.getSession()?.end(),
+  onScale: (s) => setScale(s),
   menu: () => {
     const space = stage.scan?.info.kind === "space";
     const pos = order().indexOf(state.index) + 1;
@@ -195,6 +196,11 @@ function setLook(look: LookName) {
 function setAuto(on: boolean) {
   auto.enabled = on;
   $<HTMLInputElement>("#auto").checked = on;
+  if (on && stage.mode && stage.scan && stage.scan.splats > HEADSET_MAX_SPLATS) {
+    remember();
+    void open(state.index);
+    return;
+  }
   if (on) setDensity(autoStart(), true);
   updateCounts();
   remember();
@@ -213,6 +219,7 @@ densityInput.addEventListener("input", () => {
   if (auto.enabled) setAuto(false);
   setDensity(fromLog(Number(densityInput.value)));
 });
+densityInput.addEventListener("pointerup", () => densityInput.blur());
 function setDensity(d: number, fromAuto = false) {
   state.density = d;
   stage.look.density.value = d;
@@ -240,6 +247,7 @@ function updateCounts() {
 // Scale slider is logarithmic: −200 … 300 → ¼× … 8×.
 const scaleInput = $<HTMLInputElement>("#scale");
 scaleInput.addEventListener("input", () => setScale(Math.pow(2, Number(scaleInput.value) / 100)));
+scaleInput.addEventListener("pointerup", () => scaleInput.blur());
 function setScale(s: number) {
   s = THREE.MathUtils.clamp(s, 0.25, 8);
   stage.exhibit.scale.setScalar(s);
@@ -259,8 +267,15 @@ $("#reset").addEventListener("click", resetAll);
 
 /* ── Video ───────────────────────────────────────────────────────── */
 
+let videoBlobUrl: string | null = null;
+
 function playVideo(src: string, title: string) {
   const v = stage.video;
+  if (videoBlobUrl && videoBlobUrl !== src) {
+    URL.revokeObjectURL(videoBlobUrl);
+    videoBlobUrl = null;
+  }
+  if (src.startsWith("blob:")) videoBlobUrl = src;
   v.src = src;
   v.play().catch(() => {});
   stage.screen.visible = true;
@@ -386,7 +401,7 @@ function status(msg: string) {
 document.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const t = e.target as HTMLElement;
-  if (t.closest("input, textarea, select, [contenteditable]")) return;
+  if (t.closest('input:not([type="range"]):not([type="checkbox"]):not([type="button"]), textarea, select, [contenteditable]')) return;
   const keys: Record<string, () => void> = {
     ArrowLeft: () => step(-1),
     ArrowRight: () => step(1),
