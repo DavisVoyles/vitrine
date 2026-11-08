@@ -11,6 +11,12 @@ It's a web app (WebXR), so there's nothing to install on the headset: open
 Enter passthrough. It's rebuilt and republished from `main` on every push
 (`.github/workflows/pages.yml`).
 
+The published site asks for a shared password first, to keep strangers and crawlers out
+(it's also marked noindex). The check runs in the page, since GitHub Pages has no server,
+so it keeps people out of the app but doesn't hide the files in this public repo. To
+change it, put the SHA-256 of the new password (lowercase) in `HASH` in `src/gate.ts`:
+`printf 'new password' | shasum -a 256`. Local dev skips it.
+
 ## What it does
 
 - **Real size.** The bottle is shown 26 cm tall and the jar 17 cm, on a small ring at
@@ -133,5 +139,6 @@ around you (`scale` sets metres per file unit for a space). They appear in the l
 | `src/autoDetail.ts` | Auto detail: holds the headset's frame rate by changing the share of splats drawn |
 | `src/scans.ts` | The scan library, local scans, loading, real-size framing and thinning |
 | `src/main.ts` | The page |
+| `src/gate.ts` | The password in front of the published site |
 
 Built with Spark 2.4 and three.js 0.180. Scans and clips: D. Voyles, CC BY 4.0.

@@ -98,3 +98,21 @@ kbd {
   #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 52dvh auto; height: auto; min-height: 100dvh; }
   #panel { border-left: 0; border-top: 1px solid var(--line); }
 }
+
+/* Password gate */
+[hidden] { display: none !important; }
+.gate {
+  max-width: 380px; margin: 18vh auto 0; padding: 28px 24px; border: 1px solid var(--line);
+  border-radius: 16px; background: var(--panel);
+}
+.gate h1 { margin: 0; font: 600 22px var(--sans); }
+.gate > p:first-of-type { margin: 4px 0 18px; color: var(--ink-2); }
+.gate label { display: block; margin-bottom: 6px; color: var(--ink-2); font-size: 13px; }
+.gate .row { flex-wrap: nowrap; }
+.gate input {
+  flex: 1; min-width: 0; min-height: 44px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel-2); font-size: 16px;
+}
+.gate .btn { min-height: 44px; }
+.gate-note { min-height: 1.4em; margin: 10px 0 0; color: #ffb4b4; font-size: 13px; }
+@media (max-width: 440px) { .gate { margin: 10vh 16px 0; } }

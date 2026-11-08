@@ -1,4 +1,3 @@
-import "./style.css";
 import * as THREE from "three";
 import { LIBRARY, VIDEOS, loadLocalLibrary, loadScan, thinScan, type ScanInfo } from "./scans";
 import { Stage, type XrMode } from "./stage";
