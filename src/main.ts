@@ -402,6 +402,9 @@ document.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const t = e.target as HTMLElement;
   if (t.closest('input:not([type="range"]):not([type="checkbox"]):not([type="button"]), textarea, select, [contenteditable]')) return;
+  // A focused slider needs its arrow keys, and a focused checkbox its Space bar.
+  if (t.matches('input[type="range"]') && e.key.startsWith("Arrow")) return;
+  if (t.matches('input[type="checkbox"]') && e.key === " ") return;
   const keys: Record<string, () => void> = {
     ArrowLeft: () => step(-1),
     ArrowRight: () => step(1),
