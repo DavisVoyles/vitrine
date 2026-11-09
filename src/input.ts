@@ -13,6 +13,8 @@ export interface InputActions {
   videoPanel(): void;
   reset(): void;
   exit(): void;
+  /** Syncs the UI when the exhibit is scaled in XR. */
+  onScale?(s: number): void;
   /** The wrist menu's buttons as they should look now. */
   menu(): MenuButton[];
 }
@@ -66,11 +68,13 @@ export class XrInput {
       );
       ray.scale.z = 0.3;
       ray.frustumCulled = false;
+      ray.visible = false;
       c.add(ray);
       c.addEventListener("connected", (e) => this.sources.set(c, (e as unknown as { data: XRInputSource }).data));
       c.addEventListener("disconnected", () => {
         this.end(c);
         this.sources.delete(c);
+        ray.visible = false;
       });
       c.addEventListener("selectstart", () => this.start(c, true));
       c.addEventListener("selectend", () => this.end(c));
@@ -143,13 +147,14 @@ export class XrInput {
 
   private start(c: THREE.Group, isSelect: boolean) {
     const toExhibit = this.reach(c);
-    // The wrist menu comes first (pointing at it with the other hand).
+    // The wrist menu comes first (pointing at it or poking it with the other hand).
     if (!this.isLeft(c)) {
       const b = this.menu.rayButton(this.raycaster);
       if (b) {
         if (isSelect) this.press(b.id, c);
         return;
       }
+      if (this.menu.hitsMenu(this.raycaster) || (this.menu.visible && this.menu.tip.visible)) return;
     }
     if (this.stage.screen.visible) {
       const hit = this.raycaster.intersectObject(this.stage.screen)[0];
@@ -291,20 +296,25 @@ export class XrInput {
       // Two-handed scale: the exhibit grows or shrinks with the gap between your hands.
       const [a, b] = this.grabbing;
       const d = a.getWorldPosition(new THREE.Vector3()).distanceTo(b.getWorldPosition(new THREE.Vector3()));
-      const s = THREE.MathUtils.clamp((this.twoHand.s0 * d) / Math.max(0.02, this.twoHand.d0), 0.1, 10);
+      const s = THREE.MathUtils.clamp((this.twoHand.s0 * d) / Math.max(0.02, this.twoHand.d0), 0.25, 8);
       this.stage.exhibit.scale.setScalar(s);
+      this.actions.onScale?.(s);
     }
 
     // Rays: show how far each one reaches, brighter when it's on something.
     this.controllers.forEach((c, i) => {
+      if (!this.sources.has(c)) {
+        this.rays[i].visible = false;
+        return;
+      }
       const toExhibit = this.reach(c);
       const onMenu = !this.isLeft(c) ? this.menu.rayButton(this.raycaster)?.distance : undefined;
       const onScreen = this.stage.screen.visible ? this.raycaster.intersectObject(this.stage.screen)[0]?.distance : undefined;
       const hit = Math.min(toExhibit ?? Infinity, onScreen ?? Infinity, onMenu ?? Infinity);
       this.rays[i].scale.z = Number.isFinite(hit) ? Math.max(0.05, hit) : 0.3;
       (this.rays[i].material as THREE.LineBasicMaterial).opacity = Number.isFinite(hit) ? 0.95 : 0.35;
-      // While you poke the menu with a finger, the right ray would only be in the way.
-      this.rays[i].visible = !(this.menu.visible && this.menu.tip.visible && !this.isLeft(c));
+      // Hide the left ray while the wrist menu is up, and the right ray while poking with a fingertip.
+      this.rays[i].visible = !(this.menu.visible && (this.isLeft(c) || this.menu.tip.visible));
     });
 
     // Controller buttons (xr-standard mapping: 3 = stick click, 4 = A/X, 5 = B/Y; axes 2, 3 = thumbstick).
@@ -333,9 +343,11 @@ export class XrInput {
           } else if (Math.abs(x) < 0.3) this.snapArmed = true;
         } else if (this.grabbing.length === 0) {
           if (Math.abs(x) > 0.2) this.stage.exhibit.rotateY(-x * dt * 2);
-          if (Math.abs(y) > 0.2) this.stage.exhibit.scale.multiplyScalar(THREE.MathUtils.clamp(1 - y * dt * 1.5, 0.5, 1.5));
-          const s = THREE.MathUtils.clamp(this.stage.exhibit.scale.x, 0.1, 10);
-          this.stage.exhibit.scale.setScalar(s);
+          if (Math.abs(y) > 0.2) {
+            const s = THREE.MathUtils.clamp(this.stage.exhibit.scale.x * THREE.MathUtils.clamp(1 - y * dt * 1.5, 0.5, 1.5), 0.25, 8);
+            this.stage.exhibit.scale.setScalar(s);
+            this.actions.onScale?.(s);
+          }
         }
       } else if (side === "left") {
         edge(4, this.actions.reset);

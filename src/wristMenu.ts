@@ -162,6 +162,12 @@ export class WristMenu {
     return this.layout.findIndex((b) => x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h);
   }
 
+  /** Whether a ray intersects anywhere on the visible menu face (including padding/gaps). */
+  hitsMenu(ray: THREE.Raycaster): boolean {
+    if (!this.visible) return false;
+    return ray.intersectObject(this.mesh).length > 0;
+  }
+
   /** Button under a ray, for hover and for presses by pointing. */
   rayButton(ray: THREE.Raycaster): { id: string; distance: number } | null {
     if (!this.visible) return null;
@@ -193,7 +199,7 @@ export class WristMenu {
     if (near) this.tip.position.copy(tip);
     const i = inside ? this.at(new THREE.Vector2(local.x / W + 0.5, local.y / H + 0.5)) : -1;
     if (near && i >= 0) this.hover = i;
-    if (local.z > 0.02 || !inside) this.armed = true;
+    if (local.z > 0.02) this.armed = true;
     if (this.armed && near && local.z < 0.006 && i >= 0) {
       this.armed = false;
       return this.layout[i].id;

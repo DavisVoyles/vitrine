@@ -286,10 +286,11 @@ export class Stage {
     if (!this.renderer.xr.isPresenting) this.controls.update();
     this.onFrame?.(frame, dt);
 
-    // Card floats above the exhibit and turns to face you.
+    // Card floats above the exhibit in world +Y and turns to face you.
     if (this.scan) {
-      const top = new THREE.Vector3(0, this.scan.height + 0.09, 0);
-      this.exhibit.localToWorld(top);
+      const scale = this.exhibit.getWorldScale(new THREE.Vector3()).y;
+      const top = this.exhibit.localToWorld(new THREE.Vector3(0, this.scan.height * 0.5, 0));
+      top.y += this.scan.height * 0.5 * scale + 0.09;
       this.card.position.copy(top);
       const eye = new THREE.Vector3();
       (this.renderer.xr.isPresenting ? this.renderer.xr.getCamera() : this.camera).getWorldPosition(eye);
